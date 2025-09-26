@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { MapPinned, Navigation, PhoneCall, MessageSquare, CheckCircle2, Clock, Siren, Route } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import LeafletMap, { type LatLng, type MarkerData } from "@/components/map/LeafletMap";
+import dynamic from "next/dynamic";
+import type { LatLng, MarkerData } from "@/components/map/LeafletMap";
+const LeafletMap = dynamic(() => import("@/components/map/LeafletMap"), { ssr: false });
 
 function useTicker(ms: number) {
   const [tick, setTick] = useState(0);

@@ -8,8 +8,10 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, MapPinned, Siren, Users2, ShieldCheck, Lock, Radio, BellRing, Route, CheckCircle2, XCircle } from "lucide-react";
-import LeafletMap, { type LatLng, type MarkerData } from "@/components/map/LeafletMap";
-
+import dynamic from "next/dynamic";
+import type { LatLng, MarkerData } from "@/components/map/LeafletMap";
+const LeafletMap = dynamic(() => import("@/components/map/LeafletMap"), { ssr: false });
+ 
 function useTicker(ms: number) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -27,9 +29,14 @@ const mockIncidents = [
 ];
 
 export default function OperatorDashboard() {
+  const [mounted, setMounted] = useState(false);
   const tick = useTicker(3000);
   const [filter, setFilter] = useState<string>("all");
   const [selected, setSelected] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const stats = useMemo(() => {
     const online = 24 + (tick % 5);
@@ -66,9 +73,44 @@ export default function OperatorDashboard() {
     return [...r, ...inc];
   }, [responders, incidentPositions, filteredIncidents]);
 
+  if (!mounted) {
+    return (
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2 rounded-xl shadow-sm border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPinned className="h-5 w-5 text-sky-600" />
+              Real-time Operations Map
+            </CardTitle>
+            <CardDescription>Loading map...</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border bg-muted flex items-center justify-center">
+              <div className="text-muted-foreground">Loading...</div>
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid gap-4">
+          <Card className="rounded-xl shadow-sm border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5 text-amber-600" /> Alert Management</CardTitle>
+              <CardDescription>Loading...</CardDescription>
+            </CardHeader>
+          </Card>
+          <Card className="rounded-xl shadow-sm border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-rose-600" /> System Health</CardTitle>
+              <CardDescription>Loading...</CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
-      <Card className="xl:col-span-2 rounded-xl shadow-sm border">
+    <div className="grid gap-4 lg:grid-cols-3">
+      <Card className="lg:col-span-2 rounded-xl shadow-sm border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MapPinned className="h-5 w-5 text-sky-600" />
@@ -119,7 +161,7 @@ export default function OperatorDashboard() {
               </Select>
               <Button variant="outline" className="rounded-full"><ShieldCheck className="mr-2 h-4 w-4 text-emerald-600" /> Auto-Dispatch</Button>
             </div>
-            <div className="rounded-lg border">
+            <div className="rounded-lg border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

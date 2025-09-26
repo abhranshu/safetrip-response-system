@@ -12,8 +12,12 @@ import ResponderApp from "@/components/ResponderApp";
 import { useEffect, useState } from "react";
 
 export default function HomePage() {
-  const [time, setTime] = useState<string>(new Date().toLocaleTimeString());
+  const [time, setTime] = useState<string>("");
+  const [mounted, setMounted] = useState(false);
+  
   useEffect(() => {
+    setMounted(true);
+    setTime(new Date().toLocaleTimeString());
     const id = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -29,7 +33,7 @@ export default function HomePage() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold tracking-tight">Smart Tourist Safety Monitoring & Incident Response</h1>
-                <p className="text-sm text-muted-foreground">Calming blue/green for safety, red/orange for alerts • {time}</p>
+                <p className="text-sm text-muted-foreground">Calming blue/green for safety, red/orange for alerts • {mounted ? time : "Loading..."}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
