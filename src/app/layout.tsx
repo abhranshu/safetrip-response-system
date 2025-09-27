@@ -3,6 +3,7 @@ import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import VisualEditsMessenger from "../visual-edits/VisualEditsMessenger";
 import ErrorReporter from "@/components/ErrorReporter";
+import { Toaster } from "@/components/ui/sonner";
 import Script from "next/script";
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default function RootLayout({
         />
         {children}
         <VisualEditsMessenger />
+        <Toaster />
       </body>
     </html>
   );

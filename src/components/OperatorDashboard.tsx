@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, MapPinned, Siren, Users2, ShieldCheck, Lock, Radio, BellRing, Route, CheckCircle2, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { LatLng, MarkerData } from "@/components/map/LeafletMap";
+import { toast } from "sonner";
 const LeafletMap = dynamic(() => import("@/components/map/LeafletMap"), { ssr: false });
  
 function useTicker(ms: number) {
@@ -33,10 +34,37 @@ export default function OperatorDashboard() {
   const tick = useTicker(3000);
   const [filter, setFilter] = useState<string>("all");
   const [selected, setSelected] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<Array<{id: string, message: string, timestamp: number}>>([]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleAcknowledge = (incidentId: string, incidentType: string, location: string) => {
+    const alertMessage = `Incident ${incidentId} (${incidentType}) at ${location} has been acknowledged`;
+    
+    // Add to alerts state
+    const newAlert = {
+      id: `alert-${Date.now()}`,
+      message: alertMessage,
+      timestamp: Date.now()
+    };
+    setAlerts(prev => [newAlert, ...prev.slice(0, 9)]); // Keep last 10 alerts
+    
+    // Show toast notification
+    toast.success("Incident Acknowledged", {
+      description: alertMessage,
+      duration: 4000,
+    });
+    
+    // Also show browser notification if permission granted
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      new Notification("Incident Acknowledged", {
+        body: alertMessage,
+        icon: "/vercel.svg"
+      });
+    }
+  };
 
   const stats = useMemo(() => {
     const online = 24 + (tick % 5);
@@ -68,15 +96,24 @@ export default function OperatorDashboard() {
     ] as LatLng);
   }, [filteredIncidents]);
   const markers: MarkerData[] = useMemo(() => {
-    const r = responders.map((pos, i) => ({ position: pos, popup: `Responder #${i + 1}` }));
-    const inc = incidentPositions.map((pos, i) => ({ position: pos, popup: `${filteredIncidents[i]?.id} • ${filteredIncidents[i]?.type}` }));
+    const r = responders.map((pos, i) => ({ 
+      position: pos, 
+      popup: `Responder #${i + 1}`,
+      type: 'responder' as const
+    }));
+    const inc = incidentPositions.map((pos, i) => ({ 
+      position: pos, 
+      popup: `${filteredIncidents[i]?.id} • ${filteredIncidents[i]?.type}`,
+      type: 'incident' as const,
+      severity: filteredIncidents[i]?.severity as 'Critical' | 'High' | 'Medium' | 'Low'
+    }));
     return [...r, ...inc];
   }, [responders, incidentPositions, filteredIncidents]);
 
   if (!mounted) {
     return (
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2 rounded-xl shadow-sm border">
+      <div className="grid gap-6 xl:grid-cols-12 lg:grid-cols-1">
+        <Card className="xl:col-span-8 lg:col-span-1 rounded-xl shadow-sm border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MapPinned className="h-5 w-5 text-sky-600" />
@@ -90,10 +127,16 @@ export default function OperatorDashboard() {
             </div>
           </CardContent>
         </Card>
-        <div className="grid gap-4">
+        <div className="xl:col-span-4 lg:col-span-1 grid gap-6">
           <Card className="rounded-xl shadow-sm border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5 text-amber-600" /> Alert Management</CardTitle>
+              <CardDescription>Loading...</CardDescription>
+            </CardHeader>
+          </Card>
+          <Card className="rounded-xl shadow-sm border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5 text-blue-600" /> Recent Alerts</CardTitle>
               <CardDescription>Loading...</CardDescription>
             </CardHeader>
           </Card>
@@ -109,8 +152,8 @@ export default function OperatorDashboard() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <Card className="lg:col-span-2 rounded-xl shadow-sm border">
+    <div className="grid gap-6 xl:grid-cols-12 lg:grid-cols-1">
+      <Card className="xl:col-span-8 lg:col-span-1 rounded-xl shadow-sm border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MapPinned className="h-5 w-5 text-sky-600" />
@@ -125,33 +168,58 @@ export default function OperatorDashboard() {
             </div>
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/40 via-background/0 to-background/20" />
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Badge className="rounded-full" variant="secondary">
-              <Users2 className="mr-1 h-3 w-3 text-emerald-600" /> {stats.online} responders online
-            </Badge>
-            <Badge className="rounded-full" variant="secondary">
-              <Siren className="mr-1 h-3 w-3 text-rose-600" /> {stats.activeIncidents} active incidents
-            </Badge>
-            <Badge className="rounded-full" variant="secondary">
-              <Route className="mr-1 h-3 w-3 text-sky-600" /> avg ETA {stats.avgETA}m
-            </Badge>
-            <Badge className="rounded-full" variant="outline">
-              <Lock className="mr-1 h-3 w-3 text-indigo-600" /> blockchain verified logs
-            </Badge>
+          <div className="mt-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="rounded-full" variant="secondary">
+                <Users2 className="mr-1 h-3 w-3 text-emerald-600" /> {stats.online} responders online
+              </Badge>
+              <Badge className="rounded-full" variant="secondary">
+                <Siren className="mr-1 h-3 w-3 text-rose-600" /> {stats.activeIncidents} active incidents
+              </Badge>
+              <Badge className="rounded-full" variant="secondary">
+                <Route className="mr-1 h-3 w-3 text-sky-600" /> avg ETA {stats.avgETA}m
+              </Badge>
+              <Badge className="rounded-full" variant="outline">
+                <Lock className="mr-1 h-3 w-3 text-indigo-600" /> blockchain verified logs
+              </Badge>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-sm flex items-center justify-center text-xs">👮</div>
+                <span className="text-muted-foreground">Responders</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow-sm flex items-center justify-center text-xs">🚨</div>
+                <span className="text-muted-foreground">Critical</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 rounded-full bg-orange-500 border-2 border-white shadow-sm flex items-center justify-center text-xs">🚨</div>
+                <span className="text-muted-foreground">High</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 rounded-full bg-yellow-500 border-2 border-white shadow-sm flex items-center justify-center text-xs">🚨</div>
+                <span className="text-muted-foreground">Medium</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-white shadow-sm flex items-center justify-center text-xs">🚨</div>
+                <span className="text-muted-foreground">Low</span>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4">
+      <div className="xl:col-span-4 lg:col-span-1 grid gap-6">
         <Card className="rounded-xl shadow-sm border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5 text-amber-600" /> Alert Management</CardTitle>
             <CardDescription>Filter and manage incident workflow</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger className="rounded-full w-40"><SelectValue placeholder="Filter" /></SelectTrigger>
+                <SelectTrigger className="rounded-full w-full sm:w-40"><SelectValue placeholder="Filter" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
@@ -159,7 +227,7 @@ export default function OperatorDashboard() {
                   <SelectItem value="resolved">Resolved</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" className="rounded-full"><ShieldCheck className="mr-2 h-4 w-4 text-emerald-600" /> Auto-Dispatch</Button>
+              <Button variant="outline" className="rounded-full w-full sm:w-auto"><ShieldCheck className="mr-2 h-4 w-4 text-emerald-600" /> Auto-Dispatch</Button>
             </div>
             <div className="rounded-lg border overflow-x-auto">
               <Table>
@@ -193,9 +261,21 @@ export default function OperatorDashboard() {
                       </TableCell>
                       <TableCell>{i.status}</TableCell>
                       <TableCell>{i.location}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button size="sm" className="rounded-full" variant="secondary"><Radio className="mr-1 h-3 w-3" /> Ack</Button>
-                        <Button size="sm" className="rounded-full"><Route className="mr-1 h-3 w-3" /> Dispatch</Button>
+                      <TableCell className="text-right">
+                        <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
+                          <Button 
+                            size="sm" 
+                            className="rounded-full text-xs" 
+                            variant="secondary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAcknowledge(i.id, i.type, i.location);
+                            }}
+                          >
+                            <Radio className="mr-1 h-3 w-3" /> Ack
+                          </Button>
+                          <Button size="sm" className="rounded-full text-xs"><Route className="mr-1 h-3 w-3" /> Dispatch</Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -207,13 +287,41 @@ export default function OperatorDashboard() {
 
         <Card className="rounded-xl shadow-sm border">
           <CardHeader>
+            <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5 text-blue-600" /> Recent Alerts</CardTitle>
+            <CardDescription>Latest acknowledgments and notifications</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 max-h-64 overflow-y-auto">
+            {alerts.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-4">
+                No recent alerts
+              </div>
+            ) : (
+              alerts.map((alert) => (
+                <div key={alert.id} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors">
+                  <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-blue-900 leading-relaxed">{alert.message}</p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {new Date(alert.timestamp).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-xl shadow-sm border">
+          <CardHeader>
             <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-rose-600" /> System Health</CardTitle>
             <CardDescription>Integrity and uptime</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Badge variant="secondary" className="rounded-full"><CheckCircle2 className="mr-1 h-3 w-3 text-emerald-600" /> API healthy</Badge>
-            <Badge variant="secondary" className="rounded-full"><CheckCircle2 className="mr-1 h-3 w-3 text-emerald-600" /> Websocket live</Badge>
-            <Badge variant="secondary" className="rounded-full"><XCircle className="mr-1 h-3 w-3 text-amber-600" /> 1 delayed queue</Badge>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 gap-2">
+              <Badge variant="secondary" className="rounded-full justify-start"><CheckCircle2 className="mr-2 h-3 w-3 text-emerald-600" /> API healthy</Badge>
+              <Badge variant="secondary" className="rounded-full justify-start"><CheckCircle2 className="mr-2 h-3 w-3 text-emerald-600" /> Websocket live</Badge>
+              <Badge variant="secondary" className="rounded-full justify-start"><XCircle className="mr-2 h-3 w-3 text-amber-600" /> 1 delayed queue</Badge>
+            </div>
           </CardContent>
         </Card>
       </div>

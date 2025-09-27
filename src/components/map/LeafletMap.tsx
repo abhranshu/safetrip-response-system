@@ -22,6 +22,8 @@ export type LatLng = [number, number];
 export interface MarkerData {
   position: LatLng;
   popup?: string;
+  type?: 'responder' | 'incident';
+  severity?: 'Critical' | 'High' | 'Medium' | 'Low';
 }
 
 interface LeafletMapProps {
@@ -38,6 +40,46 @@ export const LeafletMap = ({ center, zoom = 13, markers = [], route = null, clas
     return [route.from, route.to];
   }, [route]);
 
+  // Create custom icons for better visibility
+  const createCustomIcon = (type: 'responder' | 'incident', severity?: 'Critical' | 'High' | 'Medium' | 'Low') => {
+    const colors = {
+      responder: '#10b981', // emerald
+      incident: {
+        Critical: '#ef4444', // red
+        High: '#f97316', // orange
+        Medium: '#eab308', // yellow
+        Low: '#22c55e', // green
+      }
+    };
+
+    const color = type === 'responder' ? colors.responder : colors.incident[severity || 'Medium'];
+    const symbol = type === 'responder' ? '👮' : '🚨';
+
+    return L.divIcon({
+      className: 'custom-marker',
+      html: `
+        <div style="
+          background: ${color};
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          border: 3px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          color: white;
+          font-weight: bold;
+        ">
+          ${symbol}
+        </div>
+      `,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+  };
+
   return (
     <div className={className}>
       <MapContainer center={center as LatLngExpression} zoom={zoom} scrollWheelZoom className="h-full w-full">
@@ -46,7 +88,11 @@ export const LeafletMap = ({ center, zoom = 13, markers = [], route = null, clas
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         {markers.map((m, idx) => (
-          <Marker key={idx} position={m.position as LatLngExpression}>
+          <Marker 
+            key={idx} 
+            position={m.position as LatLngExpression}
+            icon={createCustomIcon(m.type || 'incident', m.severity)}
+          >
             {m.popup ? <Popup>{m.popup}</Popup> : null}
           </Marker>
         ))}
